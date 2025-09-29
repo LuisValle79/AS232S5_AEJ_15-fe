@@ -113,5 +113,25 @@ export const jobsService = {
     } catch (error) {
       throw error;
     }
+  },
+
+  // READ - Obtener todos los trabajos eliminados
+  getAllDeletedJobs: async () => {
+    try {
+      const response = await api.get('/jobs/deleted');
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // READ - Obtener trabajo eliminado por ID
+  getDeletedJobById: async (id) => {
+    try {
+      const response = await api.get(`/jobs/deleted/${id}`);
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error;
+    }
   }
 };

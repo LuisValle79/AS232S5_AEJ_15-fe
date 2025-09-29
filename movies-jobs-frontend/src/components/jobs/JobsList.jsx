@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import { jobsService } from '../../services/jobsService.js';
 import { useApiState } from '../../hooks/useApi.js';
 import { truncateText, formatDate } from '../../utils/validation.js';
+import { JobAlerts, AlertUtils } from '../../utils/sweetAlert.js';
 import JobForm from './JobForm.jsx';
 import JobDetails from './JobDetails.jsx';
 
@@ -23,14 +24,17 @@ const JobsList = () => {
 
   const loadJobs = async () => {
     try {
+      JobAlerts.loadingSearch();
       await executeAsync(async () => {
         const data = await jobsService.getAllJobs();
         console.log('Jobs data received:', data);
         setJobs(Array.isArray(data) ? data : []);
+        AlertUtils.close();
       });
     } catch (err) {
+      AlertUtils.close();
       console.error('Error loading jobs:', err);
-      toast.error(`Error al cargar los trabajos: ${err.response?.data?.message || err.message}`);
+      await JobAlerts.errorLoad();
     }
   };
 
@@ -41,6 +45,7 @@ const JobsList = () => {
     }
 
     try {
+      JobAlerts.loadingSearch();
       await executeAsync(async () => {
         let data;
         switch (searchType) {
@@ -60,35 +65,52 @@ const JobsList = () => {
             data = await jobsService.searchJobsByTitle(searchTerm);
         }
         setJobs(data || []);
+        AlertUtils.close();
+        if (!data || data.length === 0) {
+          AlertUtils.info('Sin resultados', `No se encontraron trabajos con el criterio de búsqueda "${searchTerm}".`);
+        }
       });
     } catch (err) {
-      toast.error('Error en la búsqueda');
+      AlertUtils.close();
+      await AlertUtils.error('Error en búsqueda', 'No se pudo realizar la búsqueda. Intenta de nuevo.');
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('¿Estás seguro de eliminar este trabajo?')) return;
-
-    try {
-      await executeAsync(async () => {
-        await jobsService.deleteJob(id);
-        toast.success('Trabajo eliminado correctamente');
-        loadJobs();
-      });
-    } catch (err) {
-      toast.error('Error al eliminar el trabajo');
+  const handleDelete = async (id, jobTitle) => {
+    const result = await JobAlerts.confirmDelete(jobTitle);
+    
+    if (result.isConfirmed) {
+      try {
+        JobAlerts.loadingDelete();
+        await executeAsync(async () => {
+          await jobsService.deleteJob(id);
+          AlertUtils.close();
+          await JobAlerts.successDelete(jobTitle);
+          loadJobs();
+        });
+      } catch (err) {
+        AlertUtils.close();
+        await AlertUtils.error('Error al eliminar', 'No se pudo eliminar el trabajo. Intenta de nuevo.');
+      }
     }
   };
 
-  const handleRestore = async (id) => {
-    try {
-      await executeAsync(async () => {
-        await jobsService.restoreJob(id);
-        toast.success('Trabajo restaurado correctamente');
-        loadJobs();
-      });
-    } catch (err) {
-      toast.error('Error al restaurar el trabajo');
+  const handleRestore = async (id, jobTitle) => {
+    const result = await JobAlerts.confirmRestore(jobTitle);
+    
+    if (result.isConfirmed) {
+      try {
+        AlertUtils.loading('Restaurando trabajo...', 'Procesando restauración');
+        await executeAsync(async () => {
+          await jobsService.restoreJob(id);
+          AlertUtils.close();
+          await JobAlerts.successRestore(jobTitle);
+          loadJobs();
+        });
+      } catch (err) {
+        AlertUtils.close();
+        await AlertUtils.error('Error al restaurar', 'No se pudo restaurar el trabajo. Intenta de nuevo.');
+      }
     }
   };
 
@@ -229,7 +251,7 @@ const JobsList = () => {
                     </button>
                     {job.isActive !== false ? (
                       <button
-                        onClick={() => handleDelete(job.id)}
+                        onClick={() => handleDelete(job.id, job.jobTitle)}
                         className="btn btn-danger btn-sm"
                         title="Eliminar"
                       >
@@ -237,7 +259,7 @@ const JobsList = () => {
                       </button>
                     ) : (
                       <button
-                        onClick={() => handleRestore(job.id)}
+                        onClick={() => handleRestore(job.id, job.jobTitle)}
                         className="btn btn-success btn-sm"
                         title="Restaurar"
                       >

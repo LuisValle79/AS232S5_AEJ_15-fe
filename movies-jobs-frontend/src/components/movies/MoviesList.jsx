@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Plus, Edit, Trash2, RotateCcw, Eye } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Search, Plus, Edit, Trash2, RotateCcw, Eye, Filter } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { moviesService } from '../../services/moviesService.js';
 import { useApiState } from '../../hooks/useApi.js';
 import { truncateText, formatDate } from '../../utils/validation.js';
+import { MovieAlerts, AlertUtils } from '../../utils/sweetAlert.js';
 import MovieForm from './MovieForm.jsx';
 import MovieDetails from './MovieDetails.jsx';
+import { debounce } from 'lodash'; // Import lodash debounce for real-time search
 
 const MoviesList = () => {
   const [movies, setMovies] = useState([]);
@@ -14,64 +16,109 @@ const MoviesList = () => {
   const [showDetails, setShowDetails] = useState(false);
   const [selectedMovie, setSelectedMovie] = useState(null);
   const [editMode, setEditMode] = useState(false);
+  const [showInactive, setShowInactive] = useState(false); // New state for toggling inactive movies
   const { loading, error, executeAsync } = useApiState();
 
   useEffect(() => {
     loadMovies();
-  }, []);
+  }, [showInactive]); // Reload movies when showInactive changes
 
   const loadMovies = async () => {
     try {
+      MovieAlerts.loadingSearch();
       await executeAsync(async () => {
         const data = await moviesService.getAllMovies();
-        console.log('Movies data received:', data);
-        setMovies(Array.isArray(data) ? data : []);
+        // Filter movies based on showInactive state
+        const filteredMovies = Array.isArray(data)
+          ? data.filter((movie) => (showInactive ? movie.isActive === false : movie.isActive !== false))
+          : [];
+        setMovies(filteredMovies);
+        AlertUtils.close();
       });
     } catch (err) {
+      AlertUtils.close();
       console.error('Error loading movies:', err);
-      toast.error(`Error al cargar las películas: ${err.response?.data?.message || err.message}`);
+      await MovieAlerts.errorLoad();
     }
   };
 
-  const handleSearch = async () => {
+  // External API search
+  const handleExternalSearch = async () => {
     if (!searchTerm.trim()) {
       loadMovies();
       return;
     }
 
     try {
+      MovieAlerts.loadingSearch();
       await executeAsync(async () => {
-        const data = await moviesService.searchMoviesByTitle(searchTerm);
-        setMovies(data || []);
+        const data = await moviesService.searchMoviesExternal(searchTerm);
+        setMovies(Array.isArray(data) ? data : []);
+        AlertUtils.close();
+        if (!data || data.length === 0) {
+          AlertUtils.info('Sin resultados', 'No se encontraron películas con ese título en la API externa.');
+        }
       });
     } catch (err) {
-      toast.error('Error en la búsqueda');
+      AlertUtils.close();
+      await AlertUtils.error('Error en búsqueda externa', 'No se pudo realizar la búsqueda externa. Intenta de nuevo.');
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('¿Estás seguro de eliminar esta película?')) return;
-
-    try {
-      await executeAsync(async () => {
-        await moviesService.deleteMovie(id);
-        toast.success('Película eliminada correctamente');
+  // Real-time database search with debouncing
+  const handleDatabaseSearch = useCallback(
+    debounce(async (term) => {
+      if (!term.trim()) {
         loadMovies();
-      });
-    } catch (err) {
-      toast.error('Error al eliminar la película');
+        return;
+      }
+      try {
+        await executeAsync(async () => {
+          const data = await moviesService.searchMoviesByTitle(term);
+          setMovies(Array.isArray(data) ? data : []);
+        });
+      } catch (err) {
+        await AlertUtils.error('Error en búsqueda', 'No se pudo realizar la búsqueda en la base de datos.');
+      }
+    }, 500), // Debounce for 500ms
+    [executeAsync, showInactive]
+  );
+
+  const handleDelete = async (id, movieTitle) => {
+    const result = await MovieAlerts.confirmDelete(movieTitle);
+    
+    if (result.isConfirmed) {
+      try {
+        MovieAlerts.loadingDelete();
+        await executeAsync(async () => {
+          await moviesService.deleteMovie(id);
+          AlertUtils.close();
+          await MovieAlerts.successDelete(movieTitle);
+          loadMovies();
+        });
+      } catch (err) {
+        AlertUtils.close();
+        await AlertUtils.error('Error al eliminar', 'No se pudo eliminar la película. Intenta de nuevo.');
+      }
     }
   };
 
-  const handleRestore = async (id) => {
-    try {
-      await executeAsync(async () => {
-        await moviesService.restoreMovie(id);
-        toast.success('Película restaurada correctamente');
-        loadMovies();
-      });
-    } catch (err) {
-      toast.error('Error al restaurar la película');
+  const handleRestore = async (id, movieTitle) => {
+    const result = await MovieAlerts.confirmRestore(movieTitle);
+    
+    if (result.isConfirmed) {
+      try {
+        AlertUtils.loading('Restaurando película...', 'Procesando restauración');
+        await executeAsync(async () => {
+          await moviesService.restoreMovie(id);
+          AlertUtils.close();
+          await MovieAlerts.successRestore(movieTitle);
+          loadMovies();
+        });
+      } catch (err) {
+        AlertUtils.close();
+        await AlertUtils.error('Error al restaurar', 'No se pudo restaurar la película. Intenta de nuevo.');
+      }
     }
   };
 
@@ -97,17 +144,23 @@ const MoviesList = () => {
     loadMovies();
   };
 
+  // Toggle between active and inactive movies
+  const toggleInactiveMovies = () => {
+    setShowInactive((prev) => !prev);
+    setSearchTerm(''); // Clear search term when toggling
+  };
+
   return (
     <div className="movies-container">
       <div className="movies-header">
         <h1>Gestión de Películas</h1>
-        <button 
-          className="btn btn-primary"
-          onClick={handleCreate}
-        >
-          <Plus size={16} />
-          Nueva Película
-        </button>
+        <div className="header-actions">
+          <button className="btn btn-primary" onClick={handleCreate}>
+            <Plus size={16} />
+            Nueva Película
+          </button>
+
+        </div>
       </div>
 
       {/* Búsqueda */}
@@ -115,26 +168,48 @@ const MoviesList = () => {
         <div className="search-input-group">
           <input
             type="text"
-            placeholder="Buscar películas por título..."
+            placeholder={
+              showInactive
+                ? 'Buscar películas inactivas por título...'
+                : 'Buscar películas por título...'
+            }
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              if (!showInactive) {
+                handleDatabaseSearch(e.target.value); // Real-time search for active movies
+              }
+            }}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter' && !showInactive) {
+                handleExternalSearch(); // External search on Enter for active movies
+              }
+            }}
             className="search-input"
           />
-          <button 
-            onClick={handleSearch}
+          <button
+            onClick={handleExternalSearch}
             className="btn btn-secondary"
+            disabled={loading || showInactive}
+            title={showInactive ? 'Búsqueda externa no disponible para películas inactivas' : ''}
+          >
+            <Search size={16} />
+            Buscar Externa
+          </button>
+          <button
+            onClick={() => handleDatabaseSearch(searchTerm)}
+            className="btn btn-info"
             disabled={loading}
           >
             <Search size={16} />
-            Buscar
+            Buscar en Base de Datos
           </button>
         </div>
       </div>
 
       {/* Lista de películas */}
       {loading && <div className="loading">Cargando...</div>}
-      
+
       {error && (
         <div className="error-message">
           Error: {error}
@@ -158,6 +233,7 @@ const MoviesList = () => {
                 <th>Fecha Estreno</th>
                 <th>Calificación</th>
                 <th>Popularidad</th>
+                <th>Estado</th>
                 <th>Acciones</th>
               </tr>
             </thead>
@@ -174,6 +250,15 @@ const MoviesList = () => {
                     </span>
                   </td>
                   <td>{movie.popularity || 'N/A'}</td>
+                  <td>
+                    <span
+                      className={`status-badge ${
+                        movie.isActive !== false ? 'active' : 'inactive'
+                      }`}
+                    >
+                      {movie.isActive !== false ? 'Activa' : 'Inactiva'}
+                    </span>
+                  </td>
                   <td className="actions">
                     <button
                       onClick={() => handleView(movie)}
@@ -186,12 +271,13 @@ const MoviesList = () => {
                       onClick={() => handleEdit(movie)}
                       className="btn btn-warning btn-sm"
                       title="Editar"
+                      disabled={movie.isActive === false} // Disable edit for inactive movies
                     >
                       <Edit size={14} />
                     </button>
                     {movie.isActive !== false ? (
                       <button
-                        onClick={() => handleDelete(movie.id)}
+                        onClick={() => handleDelete(movie.id, movie.title)}
                         className="btn btn-danger btn-sm"
                         title="Eliminar"
                       >
@@ -199,7 +285,7 @@ const MoviesList = () => {
                       </button>
                     ) : (
                       <button
-                        onClick={() => handleRestore(movie.id)}
+                        onClick={() => handleRestore(movie.id, movie.title)}
                         className="btn btn-success btn-sm"
                         title="Restaurar"
                       >

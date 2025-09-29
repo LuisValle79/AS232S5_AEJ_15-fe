@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import { jobsService } from '../../services/jobsService.js';
 import { useApiState, useForm } from '../../hooks/useApi.js';
 import { validationRules } from '../../utils/validation.js';
+import { JobAlerts, AlertUtils } from '../../utils/sweetAlert.js';
 
 const JobForm = ({ job, isEdit, onSuccess, onCancel }) => {
   const { loading, executeAsync } = useApiState();
@@ -51,24 +52,42 @@ const JobForm = ({ job, isEdit, onSuccess, onCancel }) => {
     e.preventDefault();
     
     if (!validateForm()) {
-      toast.error('Por favor corrige los errores en el formulario');
+      await AlertUtils.warning('¡Formulario incompleto!', 'Por favor corrige los errores marcados en rojo antes de continuar.');
       return;
     }
 
+    // Confirmación antes de guardar
+    const confirmResult = await AlertUtils.confirmSave(
+      isEdit ? '¿Actualizar trabajo?' : '¿Crear nuevo trabajo?',
+      isEdit ? `Se actualizará la información de "${values.jobTitle}"` : `Se creará el trabajo "${values.jobTitle}"`
+    );
+
+    if (!confirmResult.isConfirmed) return;
+
     try {
+      // Mostrar loading apropiado
+      if (isEdit) {
+        JobAlerts.loadingUpdate();
+      } else {
+        JobAlerts.loadingCreate();
+      }
+
       await executeAsync(async () => {
         if (isEdit) {
           await jobsService.updateJob(job.id, values);
-          toast.success('Trabajo actualizado correctamente');
+          AlertUtils.close();
+          await JobAlerts.successUpdate(values.jobTitle);
         } else {
           await jobsService.createJob(values);
-          toast.success('Trabajo creado correctamente');
+          AlertUtils.close();
+          await JobAlerts.successCreate(values.jobTitle);
         }
 
         onSuccess();
       });
     } catch (err) {
-      toast.error(isEdit ? 'Error al actualizar el trabajo' : 'Error al crear el trabajo');
+      AlertUtils.close();
+      await JobAlerts.errorSave();
     }
   };
 

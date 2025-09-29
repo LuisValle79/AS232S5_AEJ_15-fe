@@ -91,5 +91,25 @@ export const moviesService = {
     } catch (error) {
       throw error;
     }
+  },
+
+  // READ - Obtener todas las películas eliminadas
+  getAllDeletedMovies: async () => {
+    try {
+      const response = await api.get('/movies/deleted');
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // READ - Obtener película eliminada por ID
+  getDeletedMovieById: async (id) => {
+    try {
+      const response = await api.get(`/movies/deleted/${id}`);
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error;
+    }
   }
 };

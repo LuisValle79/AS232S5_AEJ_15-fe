@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import { moviesService } from '../../services/moviesService.js';
 import { useApiState, useForm } from '../../hooks/useApi.js';
 import { validationRules } from '../../utils/validation.js';
+import { MovieAlerts, AlertUtils } from '../../utils/sweetAlert.js';
 
 const MovieForm = ({ movie, isEdit, onSuccess, onCancel }) => {
   const { loading, executeAsync } = useApiState();
@@ -51,11 +52,26 @@ const MovieForm = ({ movie, isEdit, onSuccess, onCancel }) => {
     e.preventDefault();
     
     if (!validateForm()) {
-      toast.error('Por favor corrige los errores en el formulario');
+      await AlertUtils.warning('¡Formulario incompleto!', 'Por favor corrige los errores marcados en rojo antes de continuar.');
       return;
     }
 
+    // Confirmación antes de guardar
+    const confirmResult = await AlertUtils.confirmSave(
+      isEdit ? '¿Actualizar película?' : '¿Crear nueva película?',
+      isEdit ? `Se actualizará la información de "${values.title}"` : `Se creará la película "${values.title}"`
+    );
+
+    if (!confirmResult.isConfirmed) return;
+
     try {
+      // Mostrar loading apropiado
+      if (isEdit) {
+        MovieAlerts.loadingUpdate();
+      } else {
+        MovieAlerts.loadingCreate();
+      }
+
       await executeAsync(async () => {
         const movieData = {
           ...values,
@@ -66,16 +82,19 @@ const MovieForm = ({ movie, isEdit, onSuccess, onCancel }) => {
 
         if (isEdit) {
           await moviesService.updateMovie(movie.id, movieData);
-          toast.success('Película actualizada correctamente');
+          AlertUtils.close();
+          await MovieAlerts.successUpdate(values.title);
         } else {
           await moviesService.createMovie(movieData);
-          toast.success('Película creada correctamente');
+          AlertUtils.close();
+          await MovieAlerts.successCreate(values.title);
         }
 
         onSuccess();
       });
     } catch (err) {
-      toast.error(isEdit ? 'Error al actualizar la película' : 'Error al crear la película');
+      AlertUtils.close();
+      await MovieAlerts.errorSave();
     }
   };
 

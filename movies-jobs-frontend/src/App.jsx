@@ -4,6 +4,8 @@ import Navbar from './components/common/Navbar.jsx';
 import HomePage from './pages/HomePage.jsx';
 import MoviesList from './components/movies/MoviesList.jsx';
 import JobsList from './components/jobs/JobsList.jsx';
+import DeletedMoviesList from './components/movies/DeletedMoviesList.jsx';
+import DeletedJobsList from './components/jobs/DeletedJobsList.jsx';
 import './App.css';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -16,6 +18,10 @@ function App() {
         return <MoviesList />;
       case 'jobs':
         return <JobsList />;
+      case 'deleted-movies':
+        return <DeletedMoviesList />;
+      case 'deleted-jobs':
+        return <DeletedJobsList />;
       case 'home':
       default:
         return <HomePage setActiveTab={setActiveTab} />;

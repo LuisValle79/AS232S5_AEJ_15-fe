@@ -1,55 +1,63 @@
 import React from 'react';
-import { Film, Briefcase, Database, Zap, Shield, Search } from 'lucide-react';
+import { Film, Briefcase, Database, Zap, Shield, Search, Star, Users, TrendingUp, MapPin, Calendar, ExternalLink } from 'lucide-react';
 
 const HomePage = ({ setActiveTab }) => {
   const features = [
     {
       icon: Film,
       title: 'Gestión de Películas',
-      description: 'CRUD completo para películas con búsqueda avanzada, calificaciones y detalles.',
+      description: 'CRUD completo para películas con búsqueda avanzada, calificaciones, detalles y gestión de géneros.',
       action: () => setActiveTab('movies'),
-      buttonText: 'Ver Películas'
+      buttonText: 'Explorar Películas',
+      gradient: 'from-purple-500 to-pink-500'
     },
     {
       icon: Briefcase,
       title: 'Gestión de Trabajos',
-      description: 'Administra ofertas de trabajo con filtros por empresa, ubicación y tipo.',
+      description: 'Administra ofertas laborales con filtros avanzados por empresa, ubicación, tipo de empleo y salario.',
       action: () => setActiveTab('jobs'),
-      buttonText: 'Ver Trabajos'
+      buttonText: 'Ver Oportunidades',
+      gradient: 'from-blue-500 to-teal-500'
     }
   ];
 
-  const systemFeatures = [
-    {
-      icon: Database,
-      title: 'CRUD Completo',
-      description: 'Crear, leer, actualizar y eliminar registros de forma segura'
-    },
-    {
-      icon: Shield,
-      title: 'Eliminado Lógico',
-      description: 'Los datos no se pierden, se pueden restaurar cuando sea necesario'
-    },
-    {
-      icon: Search,
-      title: 'Búsqueda Avanzada',
-      description: 'Encuentra información rápidamente con múltiples filtros'
-    },
-    {
-      icon: Zap,
-      title: 'Interfaz Moderna',
-      description: 'Diseño responsive y fácil de usar con React y Vite'
-    }
+
+
+  const statistics = [
+    { icon: Star, label: 'Calificación', value: '4.9/5', color: 'text-yellow-500' },
+    { icon: Users, label: 'Usuarios Activos', value: '1,200+', color: 'text-blue-500' },
+    { icon: TrendingUp, label: 'Crecimiento', value: '+25%', color: 'text-green-500' },
+    { icon: Database, label: 'Registros', value: '50K+', color: 'text-purple-500' }
   ];
 
   return (
     <div className="home-page">
+      {/* Hero Section */}
       <div className="hero-section">
-        <h1>Bienvenido al Sistema CRUD</h1>
+        <h1>Sistema de Gestión Integral</h1>
         <p className="hero-subtitle">
-          Gestiona películas y trabajos de forma eficiente con nuestra plataforma integrada
+          Plataforma moderna para la administración eficiente de películas y oportunidades laborales
         </p>
         
+        {/* Statistics */}
+        <div className="statistics-grid">
+          {statistics.map((stat, index) => {
+            const Icon = stat.icon;
+            return (
+              <div key={index} className="stat-item">
+                <div className={`stat-icon ${stat.color}`}>
+                  <Icon size={24} />
+                </div>
+                <div className="stat-info">
+                  <div className="stat-number">{stat.value}</div>
+                  <div className="stat-label">{stat.label}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Main Actions */}
         <div className="quick-actions">
           {features.map((feature, index) => {
             const Icon = feature.icon;
@@ -65,6 +73,7 @@ const HomePage = ({ setActiveTab }) => {
                   className="btn btn-primary"
                 >
                   {feature.buttonText}
+                  <ExternalLink size={16} />
                 </button>
               </div>
             );
@@ -72,44 +81,17 @@ const HomePage = ({ setActiveTab }) => {
         </div>
       </div>
 
-      <div className="features-section">
-        <h2>Características del Sistema</h2>
-        <div className="features-grid">
-          {systemFeatures.map((feature, index) => {
-            const Icon = feature.icon;
-            return (
-              <div key={index} className="feature-card">
-                <div className="feature-icon">
-                  <Icon size={24} />
-                </div>
-                <h4>{feature.title}</h4>
-                <p>{feature.description}</p>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="api-info">
-        <h2>APIs Integradas</h2>
-        <div className="api-cards">
-          <div className="api-card">
-            <h3>Movies API</h3>
-            <div className="api-endpoints">
-              <span className="endpoint">GET /api/movies</span>
-              <span className="endpoint">POST /api/movies</span>
-              <span className="endpoint">PUT /api/movies/{'{id}'}</span>
-              <span className="endpoint">DELETE /api/movies/{'{id}'}</span>
-            </div>
-          </div>
-          <div className="api-card">
-            <h3>Jobs API</h3>
-            <div className="api-endpoints">
-              <span className="endpoint">GET /api/jobs</span>
-              <span className="endpoint">POST /api/jobs</span>
-              <span className="endpoint">PUT /api/jobs/{'{id}'}</span>
-              <span className="endpoint">DELETE /api/jobs/{'{id}'}</span>
-            </div>
+      {/* Footer Info */}
+      <div className="footer-info">
+        <div className="tech-stack">
+          <h3>Tecnologías Utilizadas</h3>
+          <div className="tech-badges">
+            <span className="tech-badge">React 18</span>
+            <span className="tech-badge">Vite</span>
+            <span className="tech-badge">Spring Boot</span>
+            <span className="tech-badge">PostgreSQL</span>
+            <span className="tech-badge">Axios</span>
+            <span className="tech-badge">Lucide Icons</span>
           </div>
         </div>
       </div>
