@@ -115,6 +115,35 @@ export const jobsService = {
     }
   },
 
+  // SEARCH - Búsqueda API externa avanzada con parámetros
+  searchJobsExternalApi: async (searchParams) => {
+    try {
+      const { query, country, pages } = searchParams;
+      const params = new URLSearchParams();
+      
+      // El parámetro 'query' es requerido
+      if (query) params.append('query', query);
+      if (country) params.append('country', country);
+      if (pages) params.append('pages', pages);
+      
+      // Log para depuración
+      const url = `/jobs/search?${params.toString()}`;
+      console.log('URL de búsqueda:', url);
+      console.log('Parámetros enviados:', { query, country, pages });
+      
+      const response = await api.get(url);
+      console.log('Respuesta exitosa:', response);
+      return response.data.data || response.data;
+    } catch (error) {
+      console.error('Error detallado en searchJobsExternalApi:', error);
+      console.error('Configuración de la solicitud:', error.config);
+      if (error.response) {
+        console.error('Respuesta del servidor:', error.response);
+      }
+      throw error;
+    }
+  },
+
   // READ - Obtener todos los trabajos eliminados
   getAllDeletedJobs: async () => {
     try {

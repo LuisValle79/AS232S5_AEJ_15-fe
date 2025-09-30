@@ -7,21 +7,38 @@ import { truncateText, formatDate } from '../../utils/validation.js';
 import { MovieAlerts, AlertUtils } from '../../utils/sweetAlert.js';
 import MovieForm from './MovieForm.jsx';
 import MovieDetails from './MovieDetails.jsx';
-import { debounce } from 'lodash'; // Import lodash debounce for real-time search
+import Pagination from '../common/Pagination.jsx';
+import { debounce } from '../../utils/pagination.js';
 
 const MoviesList = () => {
   const [movies, setMovies] = useState([]);
+  const [allMovies, setAllMovies] = useState([]); // Para almacenar todas las películas
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [selectedMovie, setSelectedMovie] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [showInactive, setShowInactive] = useState(false); // New state for toggling inactive movies
+  
+  // Estados para paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
+  
   const { loading, error, executeAsync } = useApiState();
 
   useEffect(() => {
     loadMovies();
   }, [showInactive]); // Reload movies when showInactive changes
+
+  // Efecto para actualizar la paginación cuando cambian los datos
+  useEffect(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedMovies = allMovies.slice(startIndex, endIndex);
+    setMovies(paginatedMovies);
+    setTotalItems(allMovies.length);
+  }, [allMovies, currentPage, itemsPerPage]);
 
   const loadMovies = async () => {
     try {
@@ -32,7 +49,8 @@ const MoviesList = () => {
         const filteredMovies = Array.isArray(data)
           ? data.filter((movie) => (showInactive ? movie.isActive === false : movie.isActive !== false))
           : [];
-        setMovies(filteredMovies);
+        setAllMovies(filteredMovies);
+        setCurrentPage(1); // Resetear a la primera página
         AlertUtils.close();
       });
     } catch (err) {
@@ -53,9 +71,11 @@ const MoviesList = () => {
       MovieAlerts.loadingSearch();
       await executeAsync(async () => {
         const data = await moviesService.searchMoviesExternal(searchTerm);
-        setMovies(Array.isArray(data) ? data : []);
+        const moviesArray = Array.isArray(data) ? data : [];
+        setAllMovies(moviesArray);
+        setCurrentPage(1); // Resetear a la primera página en búsquedas
         AlertUtils.close();
-        if (!data || data.length === 0) {
+        if (moviesArray.length === 0) {
           AlertUtils.info('Sin resultados', 'No se encontraron películas con ese título en la API externa.');
         }
       });
@@ -75,7 +95,9 @@ const MoviesList = () => {
       try {
         await executeAsync(async () => {
           const data = await moviesService.searchMoviesByTitle(term);
-          setMovies(Array.isArray(data) ? data : []);
+          const moviesArray = Array.isArray(data) ? data : [];
+          setAllMovies(moviesArray);
+          setCurrentPage(1); // Resetear a la primera página en búsquedas
         });
       } catch (err) {
         await AlertUtils.error('Error en búsqueda', 'No se pudo realizar la búsqueda en la base de datos.');
@@ -148,7 +170,20 @@ const MoviesList = () => {
   const toggleInactiveMovies = () => {
     setShowInactive((prev) => !prev);
     setSearchTerm(''); // Clear search term when toggling
+    setCurrentPage(1); // Resetear a la primera página al cambiar filtro
   };
+
+  // Funciones para manejar la paginación
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+  };
+
+  const handleItemsPerPageChange = (newItemsPerPage) => {
+    setItemsPerPage(newItemsPerPage);
+    setCurrentPage(1); // Volver a la primera página cuando se cambia el tamaño
+  };
+
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
 
   return (
     <div className="movies-container">
@@ -216,88 +251,101 @@ const MoviesList = () => {
         </div>
       )}
 
-      {!loading && movies.length === 0 && (
+      {!loading && totalItems === 0 && (
         <div className="empty-state">
           <p>No se encontraron películas</p>
         </div>
       )}
 
       {!loading && movies.length > 0 && (
-        <div className="table-container">
-          <table className="movies-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Título</th>
-                <th>Descripción</th>
-                <th>Fecha Estreno</th>
-                <th>Calificación</th>
-                <th>Popularidad</th>
-                <th>Estado</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {movies.map((movie) => (
-                <tr key={movie.id || movie.movieId}>
-                  <td>{movie.movieId}</td>
-                  <td className="movie-title">{movie.title}</td>
-                  <td>{truncateText(movie.overview, 80)}</td>
-                  <td>{formatDate(movie.releaseDate)}</td>
-                  <td>
-                    <span className="rating">
-                      ⭐ {movie.voteAverage || 'N/A'}
-                    </span>
-                  </td>
-                  <td>{movie.popularity || 'N/A'}</td>
-                  <td>
-                    <span
-                      className={`status-badge ${
-                        movie.isActive !== false ? 'active' : 'inactive'
-                      }`}
-                    >
-                      {movie.isActive !== false ? 'Activa' : 'Inactiva'}
-                    </span>
-                  </td>
-                  <td className="actions">
-                    <button
-                      onClick={() => handleView(movie)}
-                      className="btn btn-info btn-sm"
-                      title="Ver detalles"
-                    >
-                      <Eye size={14} />
-                    </button>
-                    <button
-                      onClick={() => handleEdit(movie)}
-                      className="btn btn-warning btn-sm"
-                      title="Editar"
-                      disabled={movie.isActive === false} // Disable edit for inactive movies
-                    >
-                      <Edit size={14} />
-                    </button>
-                    {movie.isActive !== false ? (
-                      <button
-                        onClick={() => handleDelete(movie.id, movie.title)}
-                        className="btn btn-danger btn-sm"
-                        title="Eliminar"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleRestore(movie.id, movie.title)}
-                        className="btn btn-success btn-sm"
-                        title="Restaurar"
-                      >
-                        <RotateCcw size={14} />
-                      </button>
-                    )}
-                  </td>
+        <>
+          <div className="table-container">
+            <table className="movies-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Título</th>
+                  <th>Descripción</th>
+                  <th>Fecha Estreno</th>
+                  <th>Calificación</th>
+                  <th>Popularidad</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {movies.map((movie) => (
+                  <tr key={movie.id || movie.movieId}>
+                    <td>{movie.movieId}</td>
+                    <td className="movie-title">{movie.title}</td>
+                    <td>{truncateText(movie.overview, 80)}</td>
+                    <td>{formatDate(movie.releaseDate)}</td>
+                    <td>
+                      <span className="rating">
+                        ⭐ {movie.voteAverage || 'N/A'}
+                      </span>
+                    </td>
+                    <td>{movie.popularity || 'N/A'}</td>
+                    <td>
+                      <span
+                        className={`status-badge ${
+                          movie.isActive !== false ? 'active' : 'inactive'
+                        }`}
+                      >
+                        {movie.isActive !== false ? 'Activa' : 'Inactiva'}
+                      </span>
+                    </td>
+                    <td className="actions">
+                      <button
+                        onClick={() => handleView(movie)}
+                        className="btn btn-info btn-sm"
+                        title="Ver detalles"
+                      >
+                        <Eye size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleEdit(movie)}
+                        className="btn btn-warning btn-sm"
+                        title="Editar"
+                        disabled={movie.isActive === false} // Disable edit for inactive movies
+                      >
+                        <Edit size={14} />
+                      </button>
+                      {movie.isActive !== false ? (
+                        <button
+                          onClick={() => handleDelete(movie.id, movie.title)}
+                          className="btn btn-danger btn-sm"
+                          title="Eliminar"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleRestore(movie.id, movie.title)}
+                          className="btn btn-success btn-sm"
+                          title="Restaurar"
+                        >
+                          <RotateCcw size={14} />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          
+          {/* Componente de paginación */}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={handlePageChange}
+            onItemsPerPageChange={handleItemsPerPageChange}
+            className={loading ? 'pagination-loading' : ''}
+          />
+        </>
       )}
 
       {/* Modal de formulario */}

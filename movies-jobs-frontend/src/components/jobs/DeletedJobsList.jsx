@@ -6,13 +6,21 @@ import { useApiState } from '../../hooks/useApi.js';
 import { truncateText, formatDate } from '../../utils/validation.js';
 import { JobAlerts, AlertUtils } from '../../utils/sweetAlert.js';
 import JobDetails from './JobDetails.jsx';
+import Pagination from '../common/Pagination.jsx';
 
 const DeletedJobsList = () => {
   const [deletedJobs, setDeletedJobs] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredJobs, setFilteredJobs] = useState([]);
+  const [displayedJobs, setDisplayedJobs] = useState([]); // Para paginación
   const [showDetails, setShowDetails] = useState(false);
   const [selectedJob, setSelectedJob] = useState(null);
+  
+  // Estados para paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
+  
   const { loading, error, executeAsync } = useApiState();
 
   useEffect(() => {
@@ -30,7 +38,17 @@ const DeletedJobsList = () => {
     } else {
       setFilteredJobs(deletedJobs);
     }
+    setCurrentPage(1); // Resetear a la primera página cuando se filtra
   }, [searchTerm, deletedJobs]);
+
+  // Efecto para actualizar la paginación cuando cambian los datos filtrados
+  useEffect(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedJobs = filteredJobs.slice(startIndex, endIndex);
+    setDisplayedJobs(paginatedJobs);
+    setTotalItems(filteredJobs.length);
+  }, [filteredJobs, currentPage, itemsPerPage]);
 
   const loadDeletedJobs = async () => {
     try {
@@ -78,6 +96,18 @@ const DeletedJobsList = () => {
     setShowDetails(true);
   };
 
+  // Funciones para manejar la paginación
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+  };
+
+  const handleItemsPerPageChange = (newItemsPerPage) => {
+    setItemsPerPage(newItemsPerPage);
+    setCurrentPage(1);
+  };
+
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+
   return (
     <div className="deleted-jobs-container">
       <div className="deleted-jobs-header">
@@ -113,7 +143,7 @@ const DeletedJobsList = () => {
         </div>
       )}
 
-      {!loading && filteredJobs.length === 0 && deletedJobs.length === 0 && (
+      {!loading && totalItems === 0 && deletedJobs.length === 0 && (
         <div className="empty-state">
           <AlertTriangle size={48} />
           <h3>No hay trabajos eliminados</h3>
@@ -121,7 +151,7 @@ const DeletedJobsList = () => {
         </div>
       )}
 
-      {!loading && filteredJobs.length === 0 && deletedJobs.length > 0 && (
+      {!loading && totalItems === 0 && deletedJobs.length > 0 && (
         <div className="empty-state">
           <Search size={48} />
           <h3>No se encontraron resultados</h3>
@@ -129,74 +159,87 @@ const DeletedJobsList = () => {
         </div>
       )}
 
-      {!loading && filteredJobs.length > 0 && (
-        <div className="table-container">
-          <div className="table-header">
-            <h3>
-              Se encontraron {filteredJobs.length} trabajo{filteredJobs.length !== 1 ? 's' : ''} eliminado{filteredJobs.length !== 1 ? 's' : ''}
-            </h3>
+      {!loading && displayedJobs.length > 0 && (
+        <>
+          <div className="table-container">
+            <div className="table-header">
+              <h3>
+                Se encontraron {totalItems} trabajo{totalItems !== 1 ? 's' : ''} eliminado{totalItems !== 1 ? 's' : ''}
+              </h3>
+            </div>
+            
+            <table className="deleted-jobs-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Empresa</th>
+                  <th>Título</th>
+                  <th>Ubicación</th>
+                  <th>Tipo</th>
+                  <th>Fecha</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {displayedJobs.map((job) => (
+                  <tr key={job.id || job.jobId} className="deleted-row">
+                    <td>{job.jobId}</td>
+                    <td className="employer-name">
+                      <Building size={14} className="icon" />
+                      {job.employerName}
+                    </td>
+                    <td className="job-title">{truncateText(job.jobTitle, 40)}</td>
+                    <td className="location">
+                      <MapPin size={14} className="icon" />
+                      {job.jobCity}, {job.jobCountry}
+                    </td>
+                    <td>
+                      <span className={`employment-type ${job.jobEmploymentType?.toLowerCase().replace('-', '')}`}>
+                        {job.jobEmploymentType}
+                      </span>
+                    </td>
+                    <td>{formatDate(job.jobPostedAt)}</td>
+                    <td>
+                      <span className="status-badge deleted">
+                        Eliminado
+                      </span>
+                    </td>
+                    <td className="actions">
+                      <button
+                        onClick={() => handleView(job)}
+                        className="btn btn-info btn-sm"
+                        title="Ver detalles"
+                      >
+                        <Eye size={14} />
+                        Ver
+                      </button>
+                      <button
+                        onClick={() => handleRestore(job.id, job.jobTitle)}
+                        className="btn btn-success btn-sm"
+                        title="Restaurar trabajo"
+                      >
+                        <RotateCcw size={14} />
+                        Restaurar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
           
-          <table className="deleted-jobs-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Empresa</th>
-                <th>Título</th>
-                <th>Ubicación</th>
-                <th>Tipo</th>
-                <th>Fecha</th>
-                <th>Estado</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredJobs.map((job) => (
-                <tr key={job.id || job.jobId} className="deleted-row">
-                  <td>{job.jobId}</td>
-                  <td className="employer-name">
-                    <Building size={14} className="icon" />
-                    {job.employerName}
-                  </td>
-                  <td className="job-title">{truncateText(job.jobTitle, 40)}</td>
-                  <td className="location">
-                    <MapPin size={14} className="icon" />
-                    {job.jobCity}, {job.jobCountry}
-                  </td>
-                  <td>
-                    <span className={`employment-type ${job.jobEmploymentType?.toLowerCase().replace('-', '')}`}>
-                      {job.jobEmploymentType}
-                    </span>
-                  </td>
-                  <td>{formatDate(job.jobPostedAt)}</td>
-                  <td>
-                    <span className="status-badge deleted">
-                      Eliminado
-                    </span>
-                  </td>
-                  <td className="actions">
-                    <button
-                      onClick={() => handleView(job)}
-                      className="btn btn-info btn-sm"
-                      title="Ver detalles"
-                    >
-                      <Eye size={14} />
-                      Ver
-                    </button>
-                    <button
-                      onClick={() => handleRestore(job.id, job.jobTitle)}
-                      className="btn btn-success btn-sm"
-                      title="Restaurar trabajo"
-                    >
-                      <RotateCcw size={14} />
-                      Restaurar
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+          {/* Componente de paginación */}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={handlePageChange}
+            onItemsPerPageChange={handleItemsPerPageChange}
+            className={loading ? 'pagination-loading' : ''}
+          />
+        </>
       )}
 
       {/* Modal de detalles */}
