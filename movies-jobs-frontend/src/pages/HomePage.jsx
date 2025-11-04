@@ -6,7 +6,7 @@ const HomePage = ({ setActiveTab }) => {
     {
       icon: Film,
       title: 'Gestión de Películas',
-      description: 'CRUD completo para películas con búsqueda avanzada, calificaciones, detalles y gestión de géneros.',
+      description: 'CRUD completo para películas con búsqueda avanzada, calificaciones, detalles y gestión de géneros probando pipelines.',
       action: () => setActiveTab('movies'),
       buttonText: 'Explorar Películas',
       gradient: 'from-purple-500 to-pink-500'
