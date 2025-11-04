@@ -2,23 +2,24 @@ name: Build and Push Frontend Docker Image
 
 on:
   push:
-    branches: [main, master, develop]
+    branches:
+      - main
+      - master
+      - develop
     paths:
-      - 'src/**'
-      - 'public/**'
-      - 'package.json'
-      - 'package-lock.json'
+      - 'movies-jobs-frontend/**'
       - 'Dockerfile'
       - '.github/workflows/frontend-docker-build.yml'
-  pull_request:
-    branches: [main, master, develop]
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: movies-jobs-frontend  # 👈 mueve el contexto a tu carpeta del frontend
 
     steps:
-      # Paso 1: Obtener el código fuente
+      # Paso 1: Checkout del código
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -26,45 +27,39 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: '18'
           cache: 'npm'
+          cache-dependency-path: movies-jobs-frontend/package-lock.json  # 👈 cache desde tu subcarpeta
 
-      # Paso 3: Instalar dependencias y construir el proyecto
-      - name: Install dependencies
-        run: npm ci
+      # Paso 3: Instalar dependencias y compilar
+      - name: Install and build
+        run: |
+          npm install
+          npm run build
 
-      - name: Build React app
-        run: npm run build
-
-      # Paso 4: Verificar que el build exista
-      - name: Verify build output
-        run: test -d dist
-
-      # Paso 5: Login en Docker Hub
+      # Paso 4: Login en Docker Hub
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
-      # Paso 6: Extraer metadatos
+      # Paso 5: Extraer metadatos
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ secrets.DOCKER_HUB_USERNAME }}/as232s5-aej-15v2-fe
+          images: ${{ secrets.DOCKER_HUB_USERNAME }}/as232s5-aej-15-fe
           tags: |
             type=ref,event=branch
-            type=ref,event=pr
-            type=sha,prefix=branch-
-            type=raw,value=latest
+            type=raw,value=latest,enable={{is_default_branch}}
 
-      # Paso 7: Construir y subir la imagen Docker
+      # Paso 6: Construir y subir imagen Docker
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ./Dockerfile
+          context: ./movies-jobs-frontend  # 👈 aquí también apunta a tu carpeta frontend
+          file: ./movies-jobs-frontend/Dockerfile  # asegúrate de que el Dockerfile esté ahí
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
