@@ -1,0 +1,70 @@
+name: Build and Push Frontend Docker Image
+
+on:
+  push:
+    branches: [main, master, develop]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'Dockerfile'
+      - '.github/workflows/frontend-docker-build.yml'
+  pull_request:
+    branches: [main, master, develop]
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Paso 1: Obtener el código fuente
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Paso 2: Configurar Node.js
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+
+      # Paso 3: Instalar dependencias y construir el proyecto
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build React app
+        run: npm run build
+
+      # Paso 4: Verificar que el build exista
+      - name: Verify build output
+        run: test -d dist
+
+      # Paso 5: Login en Docker Hub
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      # Paso 6: Extraer metadatos
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKER_HUB_USERNAME }}/as232s5-aej-15v2-fe
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix=branch-
+            type=raw,value=latest
+
+      # Paso 7: Construir y subir la imagen Docker
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

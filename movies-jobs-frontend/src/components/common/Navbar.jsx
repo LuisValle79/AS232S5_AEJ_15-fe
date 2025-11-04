@@ -14,7 +14,7 @@ const Navbar = ({ activeTab, setActiveTab }) => {
     <nav className="navbar">
       <div className="navbar-brand">
         <div className="brand-icon">
-          <Sparkles size={28} />
+          <Home size={28} />
         </div>
         <div className="brand-text">
           <h1>Portal de Peliculas & Trabajos</h1>

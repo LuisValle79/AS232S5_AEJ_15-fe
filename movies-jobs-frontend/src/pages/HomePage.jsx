@@ -92,7 +92,8 @@ const HomePage = ({ setActiveTab }) => {
             <span className="tech-badge">PostgreSQL</span>
             <span className="tech-badge">Axios</span>
             <span className="tech-badge">Lucide Icons</span>
-          </div>
+          </div><br />
+          <h3>@developer luis valle</h3>
         </div>
       </div>
     </div>
