@@ -3,11 +3,15 @@ FROM node:18-alpine AS build
 
 WORKDIR /app
 
+# Argumento para la URL del API (se pasa desde docker-compose)
+ARG VITE_API_URL
+ENV VITE_API_URL=$VITE_API_URL
+
 # Copiar los archivos de dependencias
 COPY package*.json ./
 
 # Instalar dependencias
-RUN npm ci --only=production
+RUN npm install
 
 # Copiar el resto del código fuente
 COPY . .
