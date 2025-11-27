@@ -6,8 +6,14 @@
 
 param(
     [Parameter(Mandatory=$false)]
-    [ValidateSet('start', 'stop', 'restart', 'logs', 'status', 'build', 'clean', 'help')]
-    [string]$Action = 'help'
+    [ValidateSet('start', 'stop', 'restart', 'logs', 'status', 'build', 'clean', 'help', 'change-port')]
+    [string]$Action = 'help',
+    
+    [Parameter(Mandatory=$false)]
+    [int]$BackendPort,
+    
+    [Parameter(Mandatory=$false)]
+    [int]$FrontendPort
 )
 
 $ComposeFile = "docker-compose.fullstack.yml"
@@ -18,17 +24,20 @@ function Show-Help {
     Write-Host "==================================================" -ForegroundColor Cyan
     Write-Host "`nUso: .\docker-manager.ps1 -Action <accion>`n" -ForegroundColor Yellow
     Write-Host "Acciones disponibles:" -ForegroundColor Green
-    Write-Host "  start    - Iniciar la aplicación completa (Frontend + Backend)" -ForegroundColor White
-    Write-Host "  stop     - Detener todos los contenedores" -ForegroundColor White
-    Write-Host "  restart  - Reiniciar todos los contenedores" -ForegroundColor White
-    Write-Host "  logs     - Ver logs en tiempo real" -ForegroundColor White
-    Write-Host "  status   - Ver el estado de los contenedores" -ForegroundColor White
-    Write-Host "  build    - Reconstruir las imágenes" -ForegroundColor White
-    Write-Host "  clean    - Limpiar contenedores, imágenes y volúmenes" -ForegroundColor White
-    Write-Host "  help     - Mostrar esta ayuda" -ForegroundColor White
+    Write-Host "  start       - Iniciar la aplicación completa (Frontend + Backend)" -ForegroundColor White
+    Write-Host "  stop        - Detener todos los contenedores" -ForegroundColor White
+    Write-Host "  restart     - Reiniciar todos los contenedores" -ForegroundColor White
+    Write-Host "  logs        - Ver logs en tiempo real" -ForegroundColor White
+    Write-Host "  status      - Ver el estado de los contenedores" -ForegroundColor White
+    Write-Host "  build       - Reconstruir las imágenes" -ForegroundColor White
+    Write-Host "  clean       - Limpiar contenedores, imágenes y volúmenes" -ForegroundColor White
+    Write-Host "  change-port - Cambiar puerto del backend sin reconstruir" -ForegroundColor White
+    Write-Host "  help        - Mostrar esta ayuda" -ForegroundColor White
     Write-Host "`nEjemplos:" -ForegroundColor Green
     Write-Host "  .\docker-manager.ps1 -Action start" -ForegroundColor Gray
     Write-Host "  .\docker-manager.ps1 -Action logs" -ForegroundColor Gray
+    Write-Host "  .\docker-manager.ps1 -Action change-port -BackendPort 8082" -ForegroundColor Gray
+    Write-Host "  .\docker-manager.ps1 -Action change-port -BackendPort 8082 -FrontendPort 8080" -ForegroundColor Gray
     Write-Host "  .\docker-manager.ps1 -Action stop`n" -ForegroundColor Gray
 }
 
@@ -107,15 +116,63 @@ function Clean-Docker {
     }
 }
 
+function Change-Port {
+    Write-Host "`n🔧 Cambiando configuración de puertos..." -ForegroundColor Yellow
+    
+    # Leer archivo .env actual
+    $envContent = Get-Content .env -ErrorAction SilentlyContinue
+    
+    if ($BackendPort) {
+        Write-Host "📡 Cambiando puerto del backend a: $BackendPort" -ForegroundColor Cyan
+        
+        # Actualizar BACKEND_PORT en .env
+        $envContent = $envContent -replace "BACKEND_PORT=\d+", "BACKEND_PORT=$BackendPort"
+        $envContent = $envContent -replace "VITE_API_URL=http://localhost:\d+", "VITE_API_URL=http://localhost:$BackendPort"
+    }
+    
+    if ($FrontendPort) {
+        Write-Host "🌐 Cambiando puerto del frontend a: $FrontendPort" -ForegroundColor Cyan
+        
+        # Actualizar FRONTEND_PORT en .env
+        $envContent = $envContent -replace "FRONTEND_PORT=\d+", "FRONTEND_PORT=$FrontendPort"
+    }
+    
+    # Guardar archivo .env
+    $envContent | Set-Content .env
+    
+    Write-Host "`n✅ Configuración actualizada en .env" -ForegroundColor Green
+    Write-Host "🔄 Reiniciando aplicación con nuevos puertos..." -ForegroundColor Yellow
+    
+    # Reiniciar aplicación
+    docker-compose -f $ComposeFile up -d
+    
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "`n🎉 ¡Puertos cambiados exitosamente!" -ForegroundColor Green
+        Write-Host "`n📍 URLs actualizadas:" -ForegroundColor Cyan
+        
+        $frontPort = if ($FrontendPort) { $FrontendPort } else { 3000 }
+        $backPort = if ($BackendPort) { $BackendPort } else { 9098 }
+        
+        Write-Host "   Frontend:  http://localhost:$frontPort" -ForegroundColor White
+        Write-Host "   Backend:   http://localhost:$backPort/api/movies" -ForegroundColor White
+        Write-Host "   Swagger:   http://localhost:$backPort/swagger-ui.html`n" -ForegroundColor White
+        
+        Write-Host "💡 Tip: No se reconstruyó la imagen - solo se reconfiguró nginx!" -ForegroundColor Green
+    } else {
+        Write-Host "`n❌ Error al cambiar los puertos" -ForegroundColor Red
+    }
+}
+
 # Ejecutar la acción solicitada
 switch ($Action) {
-    'start'   { Start-Application }
-    'stop'    { Stop-Application }
-    'restart' { Restart-Application }
-    'logs'    { Show-Logs }
-    'status'  { Show-Status }
-    'build'   { Build-Images }
-    'clean'   { Clean-Docker }
-    'help'    { Show-Help }
-    default   { Show-Help }
+    'start'       { Start-Application }
+    'stop'        { Stop-Application }
+    'restart'     { Restart-Application }
+    'logs'        { Show-Logs }
+    'status'      { Show-Status }
+    'build'       { Build-Images }
+    'clean'       { Clean-Docker }
+    'change-port' { Change-Port }
+    'help'        { Show-Help }
+    default       { Show-Help }
 }

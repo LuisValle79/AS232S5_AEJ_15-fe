@@ -5,13 +5,20 @@ FROM node:18-alpine AS build
 
 WORKDIR /app
 
-ARG BACKEND_PORT
-ENV BACKEND_PORT=${BACKEND_PORT}
+# Argumento para la URL del API (se pasa desde docker-compose)
+ARG VITE_API_URL
+ENV VITE_API_URL=$VITE_API_URL
 
+# Copiar los archivos de dependencias
 COPY package*.json ./
-RUN npm install
 
+# Instalar dependencias (incluyendo devDependencies para el build)
+RUN npm ci
+
+# Copiar el resto del código fuente
 COPY . .
+
+# Construir la aplicación
 RUN npm run build
 
 # ===============================
@@ -19,14 +26,24 @@ RUN npm run build
 # ===============================
 FROM nginx:alpine
 
-# Copiar el build generado
+# Copiar los archivos construidos a la imagen de nginx
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Copiar el template correcto
-COPY nginx.conf.template /etc/nginx/conf.d/default.conf.template
+# Copiar el template de configuración de nginx
+COPY nginx.conf.template /etc/nginx/nginx.conf.template
 
-# Generar config final
-CMD envsubst '${BACKEND_PORT}' < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf \
-    && nginx -g 'daemon off;'
+# Copiar el script de entrypoint
+COPY entrypoint.sh /entrypoint.sh
 
+# Dar permisos de ejecución al script
+RUN chmod +x /entrypoint.sh
+
+# Variables de entorno por defecto
+ENV BACKEND_PORT=9098
+ENV BACKEND_HOST=backend-apis-ia
+
+# Exponer el puerto 80
 EXPOSE 80
+
+# Usar el script personalizado como entrypoint
+ENTRYPOINT ["/entrypoint.sh"]

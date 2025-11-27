@@ -1,0 +1,140 @@
+# Docker Compose FULLSTACK - Frontend + Backend
+# Proyecto: Movies & Jobs Application con configuración flexible
+# Autor: Luis Valle
+
+version: '3.8'
+
+services:
+  # ============================================
+  # SERVICIO DEL BACKEND (Spring Boot)
+  # ============================================
+  backend-apis-ia:
+    container_name: backend-apis-ia
+    image: luisvalle1/backend-apis-ia:latest
+    
+    ports:
+      - "${BACKEND_PORT:-9098}:${BACKEND_PORT:-9098}"
+    
+    environment:
+      # Configuración del servidor
+      - SERVER_PORT=${BACKEND_PORT:-9098}
+      - APP_HOST=http://localhost
+      - SPRING_APPLICATION_NAME=projectPruebasApis
+      
+      # Base de datos (R2DBC)
+      - SPRING_R2DBC_URL=r2dbc:postgresql://ep-withered-cell-afl7k9xj-pooler.c-2.us-west-2.aws.neon.tech:5432/neondb?options=endpoint=ep-withered-cell-afl7k9xj
+      - SPRING_R2DBC_USERNAME=neondb_owner
+      - SPRING_R2DBC_PASSWORD=npg_yYaKwc5E6gsr
+      - SPRING_R2DBC_PROPERTIES_SSLMODE=require
+      
+      # RapidAPI
+      - RAPIDAPI_KEY=ab05570ba7msh5721c89ebac0f08p1cdd10jsn93d7f9f72c33
+      - RAPIDAPI_MOVIE_HOST=ai-movie-recommender.p.rapidapi.com
+      - RAPIDAPI_JSEARCH_HOST=jsearch.p.rapidapi.com
+      - RAPIDAPI_YOUTUBE_HOST=youtube-media-downloader.p.rapidapi.com
+      
+      # SpringDoc (Swagger)
+      - SPRINGDOC_API_DOCS_PATH=/v3/api-docs
+      - SPRINGDOC_SWAGGER_UI_PATH=/swagger-ui.html
+      - SPRINGDOC_SWAGGER_UI_ENABLED=true
+      
+      # Logging
+      - LOGGING_LEVEL_SPRINGDOC=DEBUG
+      - LOGGING_LEVEL_SPRING_WEB=DEBUG
+      - LOGGING_LEVEL_ROOT=INFO
+      
+      # Java/JVM
+      - JAVA_OPTS=-Xmx512m -Xms256m
+      - TZ=America/Lima
+    
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:${BACKEND_PORT:-9098}/api/movies"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    networks:
+      - fullstack-network
+
+  # ============================================
+  # SERVICIO DEL FRONTEND (React + Vite)
+  # ============================================
+  frontend-movies-jobs:
+    container_name: frontend-movies-jobs
+    
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=http://localhost:${BACKEND_PORT:-9098}
+    
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    
+    environment:
+      - TZ=America/Lima
+      - BACKEND_PORT=${BACKEND_PORT:-9098}
+      - BACKEND_HOST=${BACKEND_HOST:-backend-apis-ia}
+    
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    
+    # El frontend depende del backend
+    depends_on:
+      backend-apis-ia:
+        condition: service_healthy
+    
+    networks:
+      - fullstack-network
+
+# ============================================
+# RED COMPARTIDA
+# ============================================
+networks:
+  fullstack-network:
+    driver: bridge
+
+# ============================================
+# INSTRUCCIONES DE USO CON PUERTOS FLEXIBLES
+# ============================================
+#
+# 1. Usar puertos por defecto (Backend: 9098, Frontend: 3000):
+#    docker-compose -f docker-compose.fullstack.yml up -d --build
+#
+# 2. Cambiar puerto del backend a 8082:
+#    BACKEND_PORT=8082 docker-compose -f docker-compose.fullstack.yml up -d --build
+#
+# 3. Cambiar ambos puertos:
+#    BACKEND_PORT=8082 FRONTEND_PORT=8080 docker-compose -f docker-compose.fullstack.yml up -d --build
+#
+# 4. Usar archivo .env:
+#    Crea un archivo .env con:
+#    BACKEND_PORT=8082
+#    FRONTEND_PORT=8080
+#    BACKEND_HOST=backend-apis-ia
+#
+# 5. Ver logs:
+#    docker-compose -f docker-compose.fullstack.yml logs -f
+#
+# 6. Detener:
+#    docker-compose -f docker-compose.fullstack.yml down
+#
+# ============================================
+# VENTAJAS DE ESTA CONFIGURACIÓN
+# ============================================
+#
+# ✅ Cambias el puerto del backend sin reconstruir la imagen
+# ✅ Nginx se configura automáticamente con el puerto correcto
+# ✅ Variables de entorno flexibles
+# ✅ Valores por defecto si no especificas variables
+# ✅ Fácil para diferentes ambientes (dev, staging, prod)
+#
